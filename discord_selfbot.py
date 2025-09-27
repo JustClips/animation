@@ -4,17 +4,12 @@ from discord.ext import tasks
 from itertools import cycle
 
 # --- Configuration ---
-# Your bot's token should be stored as an environment variable for security.
 TOKEN = os.getenv("DISCORD_TOKEN")
-
-# The text and emoji you want to animate in the custom status.
 STATUS_TEXT = "The Best Developer"
-STATUS_EMOJI = "💻"  # You can change the emoji here, or set it to None
+STATUS_EMOJI = "💻"  # You can change this emoji
 
-# Create the bot client instance.
-# You might need to specify intents for the custom status to show up reliably.
-intents = discord.Intents.default()
-client = discord.Client(intents=intents)
+# Create the bot client instance
+client = discord.Client()
 
 
 # --- Animated Status Setup ---
@@ -29,31 +24,30 @@ def generate_animation_frames(text):
         frames.append(text[:i])
     return frames
 
-# Generate the frames and create an infinite cycle from them.
+# Create an infinite cycle from the animation frames
 status_frames = cycle(generate_animation_frames(STATUS_TEXT))
 
 
-# --- Background Task Definition ---
+# --- Background Task to Change Status ---
 @tasks.loop(seconds=1)
 async def change_status():
-    """Cycles through the animated status frames and updates the bot's presence."""
-    # NOTE: The 15-second interval is to stay within Discord's API rate limits.
+    """Cycles through the animated status frames."""
+    # NOTE: The 15-second delay is to avoid errors from Discord's rate limits.
     new_status_text = next(status_frames)
-
-    # --- THIS IS THE MODIFIED PART ---
-    # We now use discord.Custom to create a custom status.
-    activity = discord.Custom(name=new_status_text, emoji=STATUS_EMOJI)
+    
+    # Use CustomActivity for a custom status with an emoji
+    activity = discord.CustomActivity(name=new_status_text, emoji=STATUS_EMOJI)
     
     await client.change_presence(activity=activity)
 
 
-# --- Bot Events ---
+# --- Bot Ready Event ---
 @client.event
 async def on_ready():
     """Called when the bot successfully logs in."""
     print(f'✅ Logged in as {client.user}')
-    print('🚀 Starting custom status animation loop...')
-    change_status.start() # Starts the animation loop.
+    print('🚀 Starting custom status animation...')
+    change_status.start()
 
 
 # --- Run the Bot ---
