@@ -1,44 +1,33 @@
 import os
 import discord
 from discord.ext import tasks
-from itertools import cycle
 
 # --- Configuration ---
 TOKEN = os.getenv("DISCORD_TOKEN")
-STATUS_TEXT = "The Best Developer"
-STATUS_EMOJI = "💻"  # You can change this emoji
+TARGET_CHANNEL_ID = 1410395105965375600 # The channel ID for the hourly message
 
-# Create the bot client instance
-client = discord.Client()
+# --- Bot Setup ---
+intents = discord.Intents.default()
+client = discord.Client(intents=intents)
 
-
-# --- Animated Status Setup ---
-def generate_animation_frames(text):
-    """Creates a list of strings for the animation effect."""
-    frames = []
-    # Build up the string, letter by letter
-    for i in range(1, len(text) + 1):
-        frames.append(text[:i])
-    # Tear down the string, letter by letter
-    for i in range(len(text) - 1, -1, -1):
-        frames.append(text[:i])
-    return frames
-
-# Create an infinite cycle from the animation frames
-status_frames = cycle(generate_animation_frames(STATUS_TEXT))
-
-
-# --- Background Task to Change Status ---
+# --- Background Task to Send a Scheduled Message ---
+# We use hours=1 for a safe, non-spam interval.
 @tasks.loop(seconds=1)
-async def change_status():
-    """Cycles through the animated status frames."""
-    # NOTE: The 15-second delay is to avoid errors from Discord's rate limits.
-    new_status_text = next(status_frames)
+async def hourly_message():
+    # Wait until the bot is ready before trying to send the first message
+    await client.wait_until_ready()
     
-    # Use CustomActivity for a custom status with an emoji
-    activity = discord.CustomActivity(name=new_status_text, emoji=STATUS_EMOJI)
+    # Get the channel object from the ID
+    channel = client.get_channel(TARGET_CHANNEL_ID)
     
-    await client.change_presence(activity=activity)
+    if channel:
+        try:
+            await channel.send("This is the hourly scheduled message!")
+            print(f"✅ Sent hourly message to channel {TARGET_CHANNEL_ID}")
+        except discord.errors.Forbidden:
+            print(f"❌ ERROR: I don't have permission to send messages in channel {TARGET_CHANNEL_ID}.")
+    else:
+        print(f"❌ ERROR: Could not find channel with ID {TARGET_CHANNEL_ID}.")
 
 
 # --- Bot Ready Event ---
@@ -46,8 +35,8 @@ async def change_status():
 async def on_ready():
     """Called when the bot successfully logs in."""
     print(f'✅ Logged in as {client.user}')
-    print('🚀 Starting custom status animation...')
-    change_status.start()
+    print('🚀 Starting hourly message task...')
+    hourly_message.start() # Start the loop
 
 
 # --- Run the Bot ---
