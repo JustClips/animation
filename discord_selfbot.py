@@ -22,74 +22,129 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Failed to sync commands: {e}")
 
-# --- Slash Command: /start ---
-@bot.tree.command(name="start", description="Create channels and send messages")
-async def start(interaction: discord.Interaction, channels_and_messages: str):
-    """
-    Create channels and send messages
-    Format: channel1_name:message1 | channel2_name:message2 | ...
-    Example: general:Welcome! | test:Testing channel | announcements:Read me!
-    """
+# --- Slash Command: /setup ---
+@bot.tree.command(name="setup", description="Configure channels and messages")
+async def setup(interaction: discord.Interaction):
+    """Open setup modal for channel configuration"""
     
     # Check if user has administrator permissions
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
         return
 
-    await interaction.response.defer(ephemeral=True)
-    
-    try:
-        guild = interaction.guild
-        if not guild:
-            await interaction.followup.send("❌ Could not find guild", ephemeral=True)
-            return
+    # Create and send modal
+    modal = SetupModal()
+    await interaction.response.send_modal(modal)
 
-        # Parse input: split by | to get channel:message pairs
-        pairs = channels_and_messages.split('|')
-        created_channels = []
-        errors = []
+# --- Modal for Setup Configuration ---
+class SetupModal(discord.ui.Modal, title="Channel Setup"):
+    def __init__(self):
+        super().__init__()
 
-        # Delete all existing channels first
-        deleted_count = 0
-        for channel in guild.channels:
-            try:
-                await channel.delete()
-                deleted_count += 1
-            except Exception as e:
-                errors.append(f"Failed to delete {channel.name}: {str(e)[:50]}")
+    channel1 = discord.ui.TextInput(
+        label="Channel 1",
+        placeholder="Format: channel_name:message",
+        required=False,
+        max_length=200
+    )
 
-        # Create new channels and send messages
-        for pair in pairs:
-            if ':' in pair:
-                channel_name, message = pair.split(':', 1)
-                channel_name = channel_name.strip()
-                message = message.strip()
-                
+    channel2 = discord.ui.TextInput(
+        label="Channel 2",
+        placeholder="Format: channel_name:message",
+        required=False,
+        max_length=200
+    )
+
+    channel3 = discord.ui.TextInput(
+        label="Channel 3",
+        placeholder="Format: channel_name:message",
+        required=False,
+        max_length=200
+    )
+
+    channel4 = discord.ui.TextInput(
+        label="Channel 4",
+        placeholder="Format: channel_name:message",
+        required=False,
+        max_length=200
+    )
+
+    channel5 = discord.ui.TextInput(
+        label="Channel 5",
+        placeholder="Format: channel_name:message",
+        required=False,
+        max_length=200
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            guild = interaction.guild
+            if not guild:
+                await interaction.followup.send("❌ Could not find guild", ephemeral=True)
+                return
+
+            # Collect all channel configurations
+            channels_data = [
+                self.channel1.value,
+                self.channel2.value,
+                self.channel3.value,
+                self.channel4.value,
+                self.channel5.value
+            ]
+            
+            # Filter out empty configurations
+            valid_channels = [ch for ch in channels_data if ch and ':' in ch]
+            
+            if not valid_channels:
+                await interaction.followup.send("❌ No valid channel configurations provided!", ephemeral=True)
+                return
+
+            # Delete all existing channels first
+            deleted_count = 0
+            for channel in guild.channels:
                 try:
-                    # Create text channel
-                    new_channel = await guild.create_text_channel(channel_name)
-                    created_channels.append(channel_name)
+                    await channel.delete()
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"❌ Error deleting channel {channel.name}: {e}")
+
+            # Create new channels and send messages
+            created_channels = []
+            errors = []
+            
+            for channel_config in valid_channels:
+                try:
+                    channel_name, message = channel_config.split(':', 1)
+                    channel_name = channel_name.strip()
+                    message = message.strip()
                     
-                    # Send message in the channel
-                    await new_channel.send(message)
+                    if channel_name and message:
+                        # Create text channel
+                        new_channel = await guild.create_text_channel(channel_name)
+                        created_channels.append(channel_name)
+                        
+                        # Send message in the channel
+                        await new_channel.send(message)
                     
                 except Exception as e:
-                    errors.append(f"Failed to create/send to {channel_name}: {str(e)[:50]}")
+                    errors.append(f"Failed config: {channel_config[:30]}... Error: {str(e)[:50]}")
+
+            # Prepare response
+            response = f"✅ Setup Completed!\n"
+            response += f"- Deleted {deleted_count} existing channels\n"
+            response += f"- Created {len(created_channels)} new channels: {', '.join(created_channels)}\n"
+            
+            if errors:
+                response += f"\n⚠️ Errors ({len(errors)}):\n" + "\n".join(errors[:5])
             else:
-                errors.append(f"Invalid format in: {pair}")
+                response += "\n🎉 All channels created successfully!"
+            
+            await interaction.followup.send(response, ephemeral=True)
 
-        # Prepare response
-        response = f"✅ Completed!\n"
-        response += f"- Deleted {deleted_count} channels\n"
-        response += f"- Created {len(created_channels)} channels: {', '.join(created_channels)}\n"
-        
-        if errors:
-            response += f"\n⚠️ Errors ({len(errors)}):\n" + "\n".join(errors[:5])
-        
-        await interaction.followup.send(response, ephemeral=True)
-
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
 
 # --- Run the Bot ---
 if TOKEN is None:
