@@ -16,27 +16,32 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 @bot.event
 async def on_ready():
     print(f'✅ Logged in as {bot.user}')
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ Synced {len(synced)} command(s)")
+    except Exception as e:
+        print(f"❌ Failed to sync commands: {e}")
 
-# --- Regular Command: !start ---
-@bot.command(name="start")
-async def start(ctx, *, channels_and_messages: str):
+# --- Slash Command: /start ---
+@bot.tree.command(name="start", description="Create channels and send messages")
+async def start(interaction: discord.Interaction, channels_and_messages: str):
     """
     Create channels and send messages
     Format: channel1_name:message1 | channel2_name:message2 | ...
-    Example: !start general:Welcome! | test:Testing channel | announcements:Read me!
+    Example: general:Welcome! | test:Testing channel | announcements:Read me!
     """
     
     # Check if user has administrator permissions
-    if not ctx.author.guild_permissions.administrator:
-        await ctx.send("❌ You need administrator permissions!")
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
         return
 
-    await ctx.send("🔄 Processing... Please wait.")
+    await interaction.response.defer(ephemeral=True)
     
     try:
-        guild = ctx.guild
+        guild = interaction.guild
         if not guild:
-            await ctx.send("❌ Could not find guild")
+            await interaction.followup.send("❌ Could not find guild", ephemeral=True)
             return
 
         # Parse input: split by | to get channel:message pairs
@@ -81,10 +86,10 @@ async def start(ctx, *, channels_and_messages: str):
         if errors:
             response += f"\n⚠️ Errors ({len(errors)}):\n" + "\n".join(errors[:5])
         
-        await ctx.send(response)
+        await interaction.followup.send(response, ephemeral=True)
 
     except Exception as e:
-        await ctx.send(f"❌ Error: {str(e)}")
+        await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
 
 # --- Run the Bot ---
 if TOKEN is None:
