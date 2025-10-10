@@ -6,42 +6,33 @@ from discord.ext import commands
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 # --- Bot Setup ---
-intents = discord.Intents.default()
-intents.guilds = True
-intents.message_content = True
-
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!')
 
 # --- Event: Bot Ready ---
 @bot.event
 async def on_ready():
     print(f'✅ Logged in as {bot.user}')
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} command(s)")
-    except Exception as e:
-        print(f"❌ Failed to sync commands: {e}")
 
-# --- Slash Command: /start ---
-@bot.tree.command(name="start", description="Create channels and send messages")
-async def start(interaction: discord.Interaction, channels_and_messages: str):
+# --- Regular Command: !start ---
+@bot.command(name="start")
+async def start(ctx, *, channels_and_messages):
     """
     Create channels and send messages
     Format: channel1_name:message1 | channel2_name:message2 | ...
-    Example: general:Welcome! | test:Testing channel | announcements:Read me!
+    Example: !start general:Welcome! | test:Testing channel | announcements:Read me!
     """
     
     # Check if user has administrator permissions
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
+    if not ctx.message.author.guild_permissions.administrator:
+        await ctx.send("❌ You need administrator permissions!")
         return
 
-    await interaction.response.defer(ephemeral=True)
+    await ctx.send("🔄 Processing... Please wait.")
     
     try:
-        guild = interaction.guild
+        guild = ctx.message.guild
         if not guild:
-            await interaction.followup.send("❌ Could not find guild", ephemeral=True)
+            await ctx.send("❌ Could not find guild")
             return
 
         # Parse input: split by | to get channel:message pairs
@@ -86,10 +77,10 @@ async def start(interaction: discord.Interaction, channels_and_messages: str):
         if errors:
             response += f"\n⚠️ Errors ({len(errors)}):\n" + "\n".join(errors[:5])
         
-        await interaction.followup.send(response, ephemeral=True)
+        await ctx.send(response)
 
     except Exception as e:
-        await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
+        await ctx.send(f"❌ Error: {str(e)}")
 
 # --- Run the Bot ---
 if TOKEN is None:
@@ -97,7 +88,5 @@ if TOKEN is None:
 else:
     try:
         bot.run(TOKEN)
-    except discord.errors.LoginFailure:
-        print("❌ ERROR: Invalid DISCORD_TOKEN. Please check your token and try again.")
-    except discord.errors.DiscordException as e:
-        print(f"❌ An unexpected Discord error occurred: {e}")
+    except:
+        print("❌ ERROR: Invalid DISCORD_TOKEN or discord.py version issue.")
