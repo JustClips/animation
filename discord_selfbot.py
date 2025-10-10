@@ -6,7 +6,11 @@ from discord.ext import commands
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 # --- Bot Setup ---
-bot = commands.Bot(command_prefix='!')
+intents = discord.Intents.default()
+intents.guilds = True
+intents.message_content = True
+
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 # --- Event: Bot Ready ---
 @bot.event
@@ -15,7 +19,7 @@ async def on_ready():
 
 # --- Regular Command: !start ---
 @bot.command(name="start")
-async def start(ctx, *, channels_and_messages):
+async def start(ctx, *, channels_and_messages: str):
     """
     Create channels and send messages
     Format: channel1_name:message1 | channel2_name:message2 | ...
@@ -23,14 +27,14 @@ async def start(ctx, *, channels_and_messages):
     """
     
     # Check if user has administrator permissions
-    if not ctx.message.author.guild_permissions.administrator:
+    if not ctx.author.guild_permissions.administrator:
         await ctx.send("❌ You need administrator permissions!")
         return
 
     await ctx.send("🔄 Processing... Please wait.")
     
     try:
-        guild = ctx.message.guild
+        guild = ctx.guild
         if not guild:
             await ctx.send("❌ Could not find guild")
             return
@@ -88,5 +92,7 @@ if TOKEN is None:
 else:
     try:
         bot.run(TOKEN)
-    except:
-        print("❌ ERROR: Invalid DISCORD_TOKEN or discord.py version issue.")
+    except discord.errors.LoginFailure:
+        print("❌ ERROR: Invalid DISCORD_TOKEN. Please check your token and try again.")
+    except Exception as e:
+        print(f"❌ An error occurred: {e}")
