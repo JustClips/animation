@@ -15,8 +15,9 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # Store configuration
 bot_config = {
     "channel_name": "test",
-    "message": "Hello! This is a test message.",
-    "number_of_channels": 5
+    "ping_message": "Hello everyone! @everyone",
+    "initial_pings": 1,
+    "final_pings": 5
 }
 
 # --- Event: Bot Ready ---
@@ -30,38 +31,31 @@ async def on_ready():
         print(f"❌ Failed to sync commands: {e}")
 
 # --- Slash Command: /configure ---
-@bot.tree.command(name="configure", description="Set up channel name, message, and number of channels")
-async def configure(interaction: discord.Interaction, channel_name: str, message: str, number_of_channels: int = 5):
-    """Configure the channel name, message, and number of channels to create"""
+@bot.tree.command(name="configure", description="Set up channel name and ping message")
+async def configure(interaction: discord.Interaction, channel_name: str, ping_message: str):
+    """Configure the channel name and ping message"""
     
     # Check if user has administrator permissions
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
         return
 
-    # Validate number_of_channels
-    if number_of_channels < 1 or number_of_channels > 50:
-        await interaction.response.send_message("❌ Number of channels must be between 1 and 50", ephemeral=True)
-        return
-
     # Update configuration
     bot_config["channel_name"] = channel_name
-    bot_config["message"] = message
-    bot_config["number_of_channels"] = number_of_channels
+    bot_config["ping_message"] = ping_message
     
     await interaction.response.send_message(
         f"✅ Configuration updated!\n"
         f"Channel name: `{channel_name}`\n"
-        f"Message: `{message}`\n"
-        f"Number of channels: `{number_of_channels}`\n"
-        f"\nNow use `/start` to create channels and send messages!", 
+        f"Ping message: `{ping_message}`\n"
+        f"\nNow use `/start` to begin the process!", 
         ephemeral=True
     )
 
 # --- Slash Command: /start ---
-@bot.tree.command(name="start", description="Delete all channels, create new ones, and send 10 messages in each")
+@bot.tree.command(name="start", description="Create channels with progressive pinging")
 async def start(interaction: discord.Interaction):
-    """Delete all channels, create configured channels, and send 10 messages in each"""
+    """Delete all channels, create new ones, and send progressive pings"""
     
     # Check if user has administrator permissions
     if not interaction.user.guild_permissions.administrator:
@@ -78,8 +72,9 @@ async def start(interaction: discord.Interaction):
 
         # Get configuration
         channel_name = bot_config["channel_name"]
-        message = bot_config["message"]
-        number_of_channels = bot_config["number_of_channels"]
+        ping_message = bot_config["ping_message"]
+        initial_pings = bot_config["initial_pings"]
+        final_pings = bot_config["final_pings"]
         
         # Delete all existing channels first
         deleted_count = 0
@@ -92,33 +87,73 @@ async def start(interaction: discord.Interaction):
             except Exception as e:
                 errors.append(f"Failed to delete {channel.name}: {str(e)[:50]}")
 
-        # Create new channels and send 10 messages in each
+        # Create channels one by one and send pings
         created_channels = []
+        total_messages_sent = 0
         message_errors = []
+        channel_limit_reached = False
         
-        for i in range(number_of_channels):
+        # First, create channels with 1 ping each until we hit the limit
+        for i in range(500):  # Attempt up to 500 channels (Discord limit)
             try:
-                # Create channel with the exact name (no numbering)
+                # Create channel with the exact name
                 new_channel = await guild.create_text_channel(channel_name)
                 created_channels.append(new_channel.name)
                 
-                # Send 10 messages in the channel
-                for j in range(10):
+                # Send initial pings (1 ping per channel)
+                for j in range(initial_pings):
                     try:
-                        await new_channel.send(message)
+                        await new_channel.send(ping_message)
+                        total_messages_sent += 1
                     except Exception as e:
-                        message_errors.append(f"Message {j+1} in channel {i+1}: {str(e)[:50]}")
-                        break
+                        message_errors.append(f"Initial ping {j+1} in channel {i+1}: {str(e)[:50]}")
                 
+                # Check if we're approaching the limit (around 490 channels)
+                if len(created_channels) >= 490:
+                    channel_limit_reached = True
+                    break
+                    
+            except discord.errors.HTTPException as e:
+                if "Maximum number of channels" in str(e):
+                    channel_limit_reached = True
+                    break
+                else:
+                    errors.append(f"Channel {i+1}: {str(e)[:50]}")
+                    break
             except Exception as e:
                 errors.append(f"Channel {i+1}: {str(e)[:50]}")
+                break
+
+        # If we've reached the limit, send additional pings to all channels
+        if channel_limit_reached and created_channels:
+            try:
+                # Send additional pings (total of 5 pings per channel)
+                additional_pings = final_pings - initial_pings  # 5 - 1 = 4 additional pings
+                
+                for channel in guild.channels:
+                    if channel.name == channel_name:  # Only send to our created channels
+                        for k in range(additional_pings):
+                            try:
+                                await channel.send(ping_message)
+                                total_messages_sent += 1
+                            except Exception as e:
+                                message_errors.append(f"Additional ping {k+1} in {channel.name}: {str(e)[:50]}")
+                                break
+                                
+            except Exception as e:
+                errors.append(f"Error during final pinging phase: {str(e)[:50]}")
 
         # Prepare response
         response = f"✅ Process Completed!\n"
         response += f"- Deleted {deleted_count} existing channels\n"
         response += f"- Created {len(created_channels)} channels named `{channel_name}`\n"
-        response += f"- Sent 10 messages to each channel\n"
-        response += f"- Total messages sent: {len(created_channels) * 10 - len(message_errors)}\n"
+        response += f"- Total messages sent: {total_messages_sent}\n"
+        response += f"- Channel limit reached: {'Yes' if channel_limit_reached else 'No'}\n"
+        
+        if channel_limit_reached:
+            response += f"- Final phase: Sent {final_pings} pings per channel\n"
+        else:
+            response += f"- Current phase: Sent {initial_pings} ping per channel\n"
         
         if errors:
             response += f"\n⚠️ Channel errors ({len(errors)}):\n" + "\n".join(errors[:5])
