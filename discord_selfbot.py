@@ -12,6 +12,13 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# Store configuration
+bot_config = {
+    "channel_name": "test-channel",
+    "message": "Hello! This is a test message.",
+    "max_channels": 500  # Discord limit is ~500 channels per server
+}
+
 # --- Event: Bot Ready ---
 @bot.event
 async def on_ready():
@@ -22,129 +29,148 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Failed to sync commands: {e}")
 
-# --- Slash Command: /setup ---
-@bot.tree.command(name="setup", description="Configure channels and messages")
-async def setup(interaction: discord.Interaction):
-    """Open setup modal for channel configuration"""
+# --- Slash Command: /configure ---
+@bot.tree.command(name="configure", description="Set up channel name and message")
+async def configure(interaction: discord.Interaction, channel_name: str, message: str, max_channels: int = 500):
+    """Configure the channel name, message, and maximum number of channels"""
     
     # Check if user has administrator permissions
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
         return
 
-    # Create and send modal
-    modal = SetupModal()
-    await interaction.response.send_modal(modal)
+    # Validate max_channels
+    if max_channels < 1 or max_channels > 500:
+        await interaction.response.send_message("❌ Max channels must be between 1 and 500", ephemeral=True)
+        return
 
-# --- Modal for Setup Configuration ---
-class SetupModal(discord.ui.Modal, title="Channel Setup"):
-    def __init__(self):
-        super().__init__()
-
-    channel1 = discord.ui.TextInput(
-        label="Channel 1",
-        placeholder="Format: channel_name:message",
-        required=False,
-        max_length=200
+    # Update configuration
+    bot_config["channel_name"] = channel_name
+    bot_config["message"] = message
+    bot_config["max_channels"] = max_channels
+    
+    await interaction.response.send_message(
+        f"✅ Configuration updated!\n"
+        f"Channel name: `{channel_name}`\n"
+        f"Message: `{message}`\n"
+        f"Max channels: `{max_channels}`\n"
+        f"\nNow use `/create` to start creating channels!", 
+        ephemeral=True
     )
 
-    channel2 = discord.ui.TextInput(
-        label="Channel 2",
-        placeholder="Format: channel_name:message",
-        required=False,
-        max_length=200
-    )
+# --- Slash Command: /create ---
+@bot.tree.command(name="create", description="Create configured channels and send messages")
+async def create(interaction: discord.Interaction):
+    """Create channels and send configured message in each"""
+    
+    # Check if user has administrator permissions
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
+        return
 
-    channel3 = discord.ui.TextInput(
-        label="Channel 3",
-        placeholder="Format: channel_name:message",
-        required=False,
-        max_length=200
-    )
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        guild = interaction.guild
+        if not guild:
+            await interaction.followup.send("❌ Could not find guild", ephemeral=True)
+            return
 
-    channel4 = discord.ui.TextInput(
-        label="Channel 4",
-        placeholder="Format: channel_name:message",
-        required=False,
-        max_length=200
-    )
-
-    channel5 = discord.ui.TextInput(
-        label="Channel 5",
-        placeholder="Format: channel_name:message",
-        required=False,
-        max_length=200
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        # Get configuration
+        channel_name = bot_config["channel_name"]
+        message = bot_config["message"]
+        max_channels = bot_config["max_channels"]
         
-        try:
-            guild = interaction.guild
-            if not guild:
-                await interaction.followup.send("❌ Could not find guild", ephemeral=True)
-                return
+        # Count existing channels
+        existing_channels = len(guild.channels)
+        channels_to_create = min(max_channels, 500 - existing_channels)
+        
+        if channels_to_create <= 0:
+            await interaction.followup.send(
+                f"❌ Cannot create more channels! Server has {existing_channels} channels (limit is 500)", 
+                ephemeral=True
+            )
+            return
 
-            # Collect all channel configurations
-            channels_data = [
-                self.channel1.value,
-                self.channel2.value,
-                self.channel3.value,
-                self.channel4.value,
-                self.channel5.value
-            ]
-            
-            # Filter out empty configurations
-            valid_channels = [ch for ch in channels_data if ch and ':' in ch]
-            
-            if not valid_channels:
-                await interaction.followup.send("❌ No valid channel configurations provided!", ephemeral=True)
-                return
+        # Create channels and send messages
+        created_count = 0
+        errors = []
+        
+        for i in range(channels_to_create):
+            try:
+                # Create unique channel name
+                unique_name = f"{channel_name}-{i+1}" if channels_to_create > 1 else channel_name
+                
+                # Create text channel
+                new_channel = await guild.create_text_channel(unique_name)
+                created_count += 1
+                
+                # Send message in the channel
+                await new_channel.send(message)
+                
+            except discord.errors.HTTPException as e:
+                if "Maximum number of channels" in str(e):
+                    errors.append(f"Reached Discord channel limit at {created_count} channels")
+                    break
+                else:
+                    errors.append(f"Channel {i+1}: {str(e)[:50]}")
+            except Exception as e:
+                errors.append(f"Channel {i+1}: {str(e)[:50]}")
 
-            # Delete all existing channels first
-            deleted_count = 0
-            for channel in guild.channels:
-                try:
-                    await channel.delete()
-                    deleted_count += 1
-                except Exception as e:
-                    print(f"❌ Error deleting channel {channel.name}: {e}")
+        # Prepare response
+        response = f"✅ Channel Creation Completed!\n"
+        response += f"- Created {created_count} channels\n"
+        response += f"- Channel name pattern: `{channel_name}`\n"
+        response += f"- Message sent: `{message}`\n"
+        
+        if errors:
+            response += f"\n⚠️ Errors ({len(errors)}):\n" + "\n".join(errors[:10])
+        
+        await interaction.followup.send(response, ephemeral=True)
 
-            # Create new channels and send messages
-            created_channels = []
-            errors = []
-            
-            for channel_config in valid_channels:
-                try:
-                    channel_name, message = channel_config.split(':', 1)
-                    channel_name = channel_name.strip()
-                    message = message.strip()
-                    
-                    if channel_name and message:
-                        # Create text channel
-                        new_channel = await guild.create_text_channel(channel_name)
-                        created_channels.append(channel_name)
-                        
-                        # Send message in the channel
-                        await new_channel.send(message)
-                    
-                except Exception as e:
-                    errors.append(f"Failed config: {channel_config[:30]}... Error: {str(e)[:50]}")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
 
-            # Prepare response
-            response = f"✅ Setup Completed!\n"
-            response += f"- Deleted {deleted_count} existing channels\n"
-            response += f"- Created {len(created_channels)} new channels: {', '.join(created_channels)}\n"
-            
-            if errors:
-                response += f"\n⚠️ Errors ({len(errors)}):\n" + "\n".join(errors[:5])
-            else:
-                response += "\n🎉 All channels created successfully!"
-            
-            await interaction.followup.send(response, ephemeral=True)
+# --- Slash Command: /clear ---
+@bot.tree.command(name="clear", description="Delete all channels in the server")
+async def clear(interaction: discord.Interaction):
+    """Delete all channels in the server"""
+    
+    # Check if user has administrator permissions
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
+        return
 
-        except Exception as e:
-            await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        guild = interaction.guild
+        if not guild:
+            await interaction.followup.send("❌ Could not find guild", ephemeral=True)
+            return
+
+        # Delete all channels
+        deleted_count = 0
+        errors = []
+        
+        for channel in guild.channels:
+            try:
+                await channel.delete()
+                deleted_count += 1
+            except Exception as e:
+                errors.append(f"Failed to delete {channel.name}: {str(e)[:50]}")
+
+        # Prepare response
+        response = f"✅ Channel Deletion Completed!\n"
+        response += f"- Deleted {deleted_count} channels\n"
+        
+        if errors:
+            response += f"\n⚠️ Errors ({len(errors)}):\n" + "\n".join(errors[:10])
+        
+        await interaction.followup.send(response, ephemeral=True)
+
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {str(e)}", ephemeral=True)
 
 # --- Run the Bot ---
 if TOKEN is None:
